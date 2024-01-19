@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="dell@172.16.16.103:22 password (2)" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
+    <serverData>
+      <paths name="dell@172.16.16.103:22 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/dell/cjm/pymarl2_mask" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="dell@172.16.16.103:22 password (2)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/dell/cjm/pymarl2_mask" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="dell_server">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/cjm/pymarl2_mask" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="project_dir">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
