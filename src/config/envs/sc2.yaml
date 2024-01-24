@@ -44,7 +44,7 @@ run_mode: "Train"
 ## Start (code for test). if train: comment followings; elif test: uncomment.
 #run_mode: "Test"
 #batch_size_run: 1
-#checkpoint_path: "/home/dell/cjm/pymarl2/src/results/models/25m_qmix_large_env=8_adam_td_lambda__2024-01-08_18-39-28"
+checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/1c3s5z_qmix_env=8_adam_td_lambda__2024-01-08_15-24-42"
 ##load_step: 1004113
 #save_model: True
 #save_replay: True

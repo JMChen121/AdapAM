@@ -1,29 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="dell@172.16.16.103:22 password (2)" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
+  <component name="PublishConfigData" autoUpload="Always" serverName="pymarl2_mask" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
     <serverData>
-      <paths name="dell@172.16.16.103:22 password">
+      <paths name="pymarl2">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/dell/cjm/pymarl2_mask" local="$PROJECT_DIR$" />
+            <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="dell@172.16.16.103:22 password (2)">
+      <paths name="pymarl2_mask">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/dell/cjm/pymarl2_mask" local="$PROJECT_DIR$" />
+            <mapping deploy="/home/dell/cjm/pymarl2_mask" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="dell_server">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/cjm/pymarl2_mask" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="project_dir">
+      <paths name="remote_pyamrl2_mask">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

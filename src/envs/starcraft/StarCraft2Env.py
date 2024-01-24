@@ -1348,6 +1348,13 @@ class StarCraft2Env(MultiAgentEnv):
             avail_actions.append(avail_agent)
         return avail_actions
 
+    def get_avail_masker_actions(self):
+        """Returns the available actions of all agents in a list."""
+        avail_actions = []
+        for agent_id in range(self.n_agents):
+            avail_actions.append([1, 1])
+        return avail_actions
+
     def close(self):
         """Close StarCraft II."""
         if self._sc2_proc:

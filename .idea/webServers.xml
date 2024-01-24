@@ -2,20 +2,7 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="0d40c4e8-4dfc-4ccb-b5dc-b65449d456d6" name="dell@172.16.16.103:22 password (2)">
-        <fileTransfer accessType="SFTP" host="172.16.16.103" port="22" sshConfigId="1af93340-eaec-410b-b177-52bc1011e308" sshConfig="dell@172.16.16.103:22 password" />
-      </webServer>
-      <webServer id="0f5c8db9-7fbf-4016-8d85-436b1c860c72" name="dell_server">
-        <fileTransfer rootFolder="/home/dell" accessType="SFTP" host="172.16.16.103" port="22" sshConfigId="1af93340-eaec-410b-b177-52bc1011e308" sshConfig="dell@172.16.16.103:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
-      <webServer id="d86e7c16-4123-44ef-bb1f-c45272a07116" name="dell@172.16.16.103:22 password">
-        <fileTransfer accessType="SFTP" host="172.16.16.103" port="22" sshConfigId="1af93340-eaec-410b-b177-52bc1011e308" sshConfig="dell@172.16.16.103:22 password" />
-      </webServer>
-      <webServer id="075f86ac-8d92-449a-9167-8f090da1682f" name="project_dir">
+      <webServer id="d58e9d0d-0c4b-4792-ae6b-7991f8d74ae2" name="remote_pyamrl2_mask">
         <fileTransfer rootFolder="/home/dell/cjm/pymarl2_mask" accessType="SFTP" host="172.16.16.103" port="22" sshConfigId="1af93340-eaec-410b-b177-52bc1011e308" sshConfig="dell@172.16.16.103:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
@@ -23,16 +10,5 @@
         </fileTransfer>
       </webServer>
     </option>
-    <groups>
-      <group>
-        <name>pymarl2_mask</name>
-        <servers>
-          <name value="dell@172.16.16.103:22 password (2)" />
-          <name value="dell_server" />
-          <name value="dell@172.16.16.103:22 password" />
-          <name value="project_dir" />
-        </servers>
-      </group>
-    </groups>
   </component>
 </project>

@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import os
 import collections
@@ -13,7 +15,7 @@ import yaml
 
 from run import REGISTRY as run_REGISTRY
 
-SETTINGS['CAPTURE_MODE'] = "fd" # set to "no" if you want to see stdout/stderr in console
+SETTINGS['CAPTURE_MODE'] = "fd"  # set to "no" if you want to see stdout/stderr in console
 logger = get_logger()
 
 ex = Experiment("pymarl")
@@ -30,12 +32,13 @@ def my_main(_run, _config, _log):
     np.random.seed(config["seed"])
     th.manual_seed(config["seed"])
     config['env_args']['seed'] = config["seed"]
-    
+
     # run
     if "use_per" in _config and _config["use_per"]:
         run_REGISTRY['per_run'](_run, config, _log)
     else:
         run_REGISTRY[_config['run']](_run, config, _log)
+
 
 def _get_config(params, arg_name, subfolder):
     config_name = None
@@ -46,7 +49,8 @@ def _get_config(params, arg_name, subfolder):
             break
 
     if config_name is not None:
-        with open(os.path.join(os.path.dirname(__file__), "config", subfolder, "{}.yaml".format(config_name)), "r") as f:
+        with open(os.path.join(os.path.dirname(__file__), "config", subfolder, "{}.yaml".format(config_name)),
+                  "r") as f:
             try:
                 config_dict = yaml.load(f)
             except yaml.YAMLError as exc:
@@ -76,7 +80,7 @@ def parse_command(params, key, default):
     result = default
     for _i, _v in enumerate(params):
         if _v.split("=")[0].strip() == key:
-            result = _v[_v.index('=')+1:].strip()
+            result = _v[_v.index('=') + 1:].strip()
             break
     return result
 
@@ -105,8 +109,9 @@ if __name__ == '__main__':
     map_name = parse_command(params, "env_args.map_name", config_dict['env_args']['map_name'])
     algo_name = parse_command(params, "name", config_dict['name'])
     run_mode = parse_command(params, "run_mode", config_dict['run_mode'])
-    file_obs_path = join(results_path, "sacred", map_name, run_mode, algo_name)
-    
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    file_obs_path = join(results_path, "sacred", map_name, run_mode, f"{algo_name}_{current_time}")
+
     logger.info("Saving to FileStorageObserver in {}.".format(file_obs_path))
     ex.observers.append(FileStorageObserver.create(file_obs_path))
 
