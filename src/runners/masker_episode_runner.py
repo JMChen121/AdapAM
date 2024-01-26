@@ -10,11 +10,22 @@ import torch
 def mask_actions(origin_actions, mask, avail_actions):
     new_actions = []
     for agent_id, m in enumerate(mask):
-        if m.item() == 1:
+        if m.item() == 1:   # mask
             indices_avail_actions = [i for i, value in enumerate(avail_actions[agent_id]) if value == 1]
             new_actions.append(random.choice(indices_avail_actions))
         else:
             new_actions.append(origin_actions[agent_id])
+    return new_actions
+
+
+def replace_action_by_id(origin_actions, target_ids, avail_actions):
+    new_actions = []
+    for agent_id, agent_action in enumerate(origin_actions):
+        if agent_id in target_ids:   # mask
+            indices_avail_actions = [i for i, value in enumerate(avail_actions[agent_id]) if value == 1]
+            new_actions.append(random.choice(indices_avail_actions))
+        else:
+            new_actions.append(agent_action)
     return new_actions
 
 
@@ -41,6 +52,7 @@ class EpisodeRunner:
         self.log_train_stats_t = -1000000
 
         """My params"""
+        self.masker_t_env = 0
         self.agents_attack_times = []
         self.agents_survival_time = []
 
@@ -71,7 +83,6 @@ class EpisodeRunner:
 
     def run(self, test_mode=False):
         self.reset()
-        # TODO: collect self.masker_batch
 
         terminated = False
         episode_return = 0
@@ -96,14 +107,34 @@ class EpisodeRunner:
             # Receive the actions for each agent at this timestep in a batch of size 1
             origin_actions = self.mac.select_actions(self.agent_batch, t_ep=self.t, t_env=self.t_env,
                                                      test_mode=test_mode)
-            masker_actions = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t, t_env=self.t_env,
+            masker_actions = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t, t_env=self.masker_t_env,
                                                             test_mode=test_mode)
             # Fix memory leak
             cpu_actions = origin_actions.to("cpu").numpy()
             cpu_masker_actions = masker_actions.to("cpu").numpy()
 
-            final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
+            if self.args.run_mode == "Test":
+                agent_outs = self.masker_mac.crt_agent_outs.reshape(self.masker_batch.batch_size * self.args.n_agents, -1)
+                reshaped_avail_actions = self.masker_batch["avail_actions"][:, self.t].reshape(self.masker_batch.batch_size * self.args.n_agents, -1)
+                agent_outs[reshaped_avail_actions == 0] = -1e5
+                probs = torch.nn.functional.softmax(agent_outs, dim=-1).cpu().detach().numpy()
+                mask_probs = [round(x, 4) for x in probs[:, 1]]
+                agent_rank = np.argsort(probs[:, 1])
+                alive_agent_rank = agent_rank[probs[:, 1][agent_rank] != 0]
+                print(f"game time step: {self.t}. masker result: {cpu_masker_actions[0]}, agent importance rank: {alive_agent_rank}, prob: {mask_probs}")
+
+                # target_ids = [agent_rank[-1]]
+                # target_ids = np.random.choice(agent_rank, size=1)
+                # final_actions = replace_action_by_id(origin_actions[0], target_ids, pre_transition_data["avail_actions"][0])
+                # final_actions = origin_actions[0]
+                final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
+            else:
+                final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
+
+            mask_reward = np.sum(cpu_masker_actions == 1) * 0.01
+            # mask_reward = 0
             reward, terminated, env_info = self.env.step(final_actions)
+            reward += mask_reward
             episode_return += reward
 
             post_transition_data = {
@@ -136,7 +167,7 @@ class EpisodeRunner:
 
         # Select actions in the last stored state
         origin_actions = self.mac.select_actions(self.agent_batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
-        masker_actions = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t, t_env=self.t_env,
+        masker_actions = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t, t_env=self.masker_t_env,
                                                         test_mode=test_mode)
         # Fix memory leak
         cpu_actions = origin_actions.to("cpu").numpy()
@@ -153,16 +184,17 @@ class EpisodeRunner:
 
         if not test_mode:
             self.t_env += self.t
+            self.masker_t_env += self.t
 
         cur_returns.append(episode_return)
 
         if test_mode and (len(self.test_returns) == self.args.test_nepisode):
             self._log(cur_returns, cur_stats, log_prefix)
-        elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
+        elif self.masker_t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(cur_returns, cur_stats, log_prefix)
-            if hasattr(self.mac.action_selector, "epsilon"):
-                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
-            self.log_train_stats_t = self.t_env
+            if hasattr(self.masker_mac.action_selector, "epsilon"):
+                self.logger.log_stat("epsilon", self.masker_mac.action_selector.epsilon, self.masker_t_env)
+            self.log_train_stats_t = self.masker_t_env
 
         """My Statistics"""
         # agents_actions = self.agent_batch.data.transition_data['actions'][0].T[0]
@@ -190,11 +222,11 @@ class EpisodeRunner:
         return self.masker_batch
 
     def _log(self, returns, stats, prefix):
-        self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)
-        self.logger.log_stat(prefix + "return_std", np.std(returns), self.t_env)
+        self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.masker_t_env)
+        self.logger.log_stat(prefix + "return_std", np.std(returns), self.masker_t_env)
         returns.clear()
 
         for k, v in stats.items():
             if k != "n_episodes":
-                self.logger.log_stat(prefix + k + "_mean", v / stats["n_episodes"], self.t_env)
+                self.logger.log_stat(prefix + k + "_mean", v / stats["n_episodes"], self.masker_t_env)
         stats.clear()

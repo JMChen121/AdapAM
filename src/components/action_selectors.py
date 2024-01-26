@@ -4,6 +4,7 @@ from torch.distributions import Categorical
 from torch.distributions.one_hot_categorical import OneHotCategorical
 from .epsilon_schedules import DecayThenFlatSchedule
 
+
 class GumbelSoftmax(OneHotCategorical):
 
     def __init__(self, logits, probs=None, temperature=1):
@@ -14,11 +15,11 @@ class GumbelSoftmax(OneHotCategorical):
     def sample_gumbel(self):
         U = self.logits.clone()
         U.uniform_(0, 1)
-        return -th.log( -th.log( U + self.eps))
+        return -th.log(-th.log(U + self.eps))
 
     def gumbel_softmax_sample(self):
         y = self.logits + self.sample_gumbel()
-        return th.softmax( y / self.temperature, dim=-1)
+        return th.softmax(y / self.temperature, dim=-1)
 
     def hard_gumbel_softmax_sample(self):
         y = self.gumbel_softmax_sample()
@@ -33,11 +34,14 @@ class GumbelSoftmax(OneHotCategorical):
     def hard_sample(self):
         return self.hard_gumbel_softmax_sample()
 
+
 def multinomial_entropy(logits):
     assert logits.size(-1) > 1
     return GumbelSoftmax(logits=logits).entropy()
 
+
 REGISTRY = {}
+
 
 class GumbelSoftmaxMultinomialActionSelector():
 
@@ -93,9 +97,9 @@ class MultinomialActionSelector():
 
             epsilon_action_num = (avail_actions.sum(-1, keepdim=True) + 1e-8)
             masked_policies = ((1 - self.epsilon) * masked_policies
-                        + avail_actions * self.epsilon/epsilon_action_num)
+                               + avail_actions * self.epsilon / epsilon_action_num)
             masked_policies[avail_actions == 0] = 0
-            
+
             picked_actions = Categorical(masked_policies).sample().long()
 
         if self.save_probs:
@@ -103,7 +107,9 @@ class MultinomialActionSelector():
         else:
             return picked_actions
 
+
 REGISTRY["multinomial"] = MultinomialActionSelector
+
 
 def categorical_entropy(probs):
     assert probs.size(-1) > 1
@@ -118,21 +124,19 @@ class EpsilonGreedyActionSelector():
         self.schedule = DecayThenFlatSchedule(args.epsilon_start, args.epsilon_finish, args.epsilon_anneal_time,
                                               decay="linear")
         self.epsilon = self.schedule.eval(0)
-        
 
     def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
-
         # Assuming agent_inputs is a batch of Q-Values for each agent bav
         self.epsilon = self.schedule.eval(t_env)
 
         if test_mode:
             # Greedy action selection only
-            self.epsilon  = getattr(self.args, "test_noise", 0.0)
+            self.epsilon = getattr(self.args, "test_noise", 0.0)
 
         # mask actions that are excluded from selection
         masked_q_values = agent_inputs.clone()
         masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
-        
+
         random_numbers = th.rand_like(agent_inputs[:, :, 0])
         pick_random = (random_numbers < self.epsilon).long()
         random_actions = Categorical(avail_actions.float()).sample().long()

@@ -34,18 +34,20 @@ env_args:
 
 test_greedy: True
 test_nepisode: 32
-test_interval: 10000.
+test_interval: 10000
 log_interval: 10000
 runner_log_interval: 10000
 learner_log_interval: 10000
 t_max: 2050000
 run_mode: "Train"
+checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/27m_vs_30m_qmix_large_env=8_adam_td_lambda__2024-01-12_20-43-47"
+#load_step: 1004113
 
 ## Start (code for test). if train: comment followings; elif test: uncomment.
 #run_mode: "Test"
 #batch_size_run: 1
-checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/1c3s5z_qmix_env=8_adam_td_lambda__2024-01-08_15-24-42"
-##load_step: 1004113
 #save_model: True
 #save_replay: True
+#masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/1c3s5z_qmix_env=8_adam_td_lambda__2024-01-24_21-23-41"
+##masker_load_step: 1004113
 ## End (code for test).

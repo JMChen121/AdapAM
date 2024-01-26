@@ -472,7 +472,7 @@ class StarCraft2Env(MultiAgentEnv):
         if terminated:
             self._episode_count += 1
             if self.run_mode == "Test":
-                print(f"game NO: {self.battles_game}; game_end_code: {game_end_code}")
+                print(f"game NO: {self.battles_game}, game_end_code: {game_end_code}")
 
         if self.reward_scale:
             reward /= self.max_reward / self.reward_scale_rate
@@ -1352,7 +1352,11 @@ class StarCraft2Env(MultiAgentEnv):
         """Returns the available actions of all agents in a list."""
         avail_actions = []
         for agent_id in range(self.n_agents):
-            avail_actions.append([1, 1])
+            unit = self.get_unit_by_id(agent_id)
+            if unit.health > 0 and self._episode_steps > 0:
+                avail_actions.append([1, 1])    # can be masked
+            else:
+                avail_actions.append([1, 0])    # cannot be masked
         return avail_actions
 
     def close(self):

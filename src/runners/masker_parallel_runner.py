@@ -5,6 +5,8 @@ from multiprocessing import Pipe, Process
 import numpy as np
 import torch as th
 
+from runners.masker_episode_runner import mask_actions
+
 
 # Based (very) heavily on SubprocVecEnv from OpenAI Baselines
 # https://github.com/openai/baselines/blob/master/baselines/common/vec_env/subproc_vec_env.py
@@ -20,8 +22,8 @@ class ParallelRunner:
         env_fn = env_REGISTRY[self.args.env]
         self.ps = []
         for i, worker_conn in enumerate(self.worker_conns):
-            ps = Process(target=env_worker, 
-                    args=(worker_conn, CloudpickleWrapper(partial(env_fn, **self.args.env_args))))
+            ps = Process(target=env_worker,
+                         args=(worker_conn, CloudpickleWrapper(partial(env_fn, **self.args.env_args))))
             self.ps.append(ps)
 
         for p in self.ps:
@@ -43,15 +45,19 @@ class ParallelRunner:
 
         self.log_train_stats_t = -100000
 
-    def setup(self, scheme, groups, preprocess, mac, masker_mac=None):
+        """My params"""
+        self.masker_t_env = 0
+        self.agents_attack_times = []
+        self.agents_survival_time = []
+
+    def setup(self, scheme, groups, preprocess, mac, masker_scheme, masker_preprocess, masker_mac):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
         self.mac = mac
-        self.scheme = scheme
-        self.groups = groups
-        self.preprocess = preprocess
 
-        # My code
+        """# My code"""
+        self.new_masker_batch = partial(EpisodeBatch, masker_scheme, groups, self.batch_size, self.episode_limit + 1,
+                                        preprocess=masker_preprocess, device=self.args.device)
         self.masker_mac = masker_mac
 
     def get_env_info(self):
@@ -66,24 +72,37 @@ class ParallelRunner:
 
     def reset(self):
         self.batch = self.new_batch()
+        """My Code"""
+        self.masker_batch = self.new_masker_batch()
 
         # Reset the envs
         for parent_conn in self.parent_conns:
             parent_conn.send(("reset", None))
 
-        pre_transition_data = {
+        self.pre_transition_data = {
             "state": [],
             "avail_actions": [],
             "obs": []
         }
+        self.pre_transition_data_masker = {
+            "state": [],
+            "avail_actions": [],
+            "obs": []
+        }
+
         # Get the obs, state and avail_actions back
         for parent_conn in self.parent_conns:
             data = parent_conn.recv()
-            pre_transition_data["state"].append(data["state"])
-            pre_transition_data["avail_actions"].append(data["avail_actions"])
-            pre_transition_data["obs"].append(data["obs"])
+            self.pre_transition_data["state"].append(data["state"])
+            self.pre_transition_data["avail_actions"].append(data["avail_actions"])
+            self.pre_transition_data["obs"].append(data["obs"])
+            """My Code. For Masker."""
+            self.pre_transition_data_masker["state"].append(data["state"])
+            self.pre_transition_data_masker["avail_actions"].append(data["avail_masker_actions"])
+            self.pre_transition_data_masker["obs"].append(data["obs"])
 
-        self.batch.update(pre_transition_data, ts=0)
+        self.batch.update(self.pre_transition_data, ts=0)
+        self.masker_batch.update(self.pre_transition_data_masker, ts=0)
 
         self.t = 0
         self.env_steps_this_run = 0
@@ -95,38 +114,54 @@ class ParallelRunner:
         episode_returns = [0 for _ in range(self.batch_size)]
         episode_lengths = [0 for _ in range(self.batch_size)]
         self.mac.init_hidden(batch_size=self.batch_size)
+        self.masker_mac.init_hidden(batch_size=self.batch_size)
         terminated = [False for _ in range(self.batch_size)]
         envs_not_terminated = [b_idx for b_idx, termed in enumerate(terminated) if not termed]
         final_env_infos = []  # may store extra stats like battle won. this is filled in ORDER OF TERMINATION
-        
+
         save_probs = getattr(self.args, "save_probs", False)
         while True:
 
             # Pass the entire batch of experiences up till now to the agents
             # Receive the actions for each agent at this timestep in a batch for each un-terminated env
             if save_probs:
-                actions, probs = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, bs=envs_not_terminated, test_mode=test_mode)
+                origin_actions, probs = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env,
+                                                                bs=envs_not_terminated, test_mode=test_mode)
+                masker_actions, masker_probs = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t,
+                                                                       t_env=self.masker_t_env, bs=envs_not_terminated,
+                                                                       test_mode=test_mode)
             else:
-                actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env, bs=envs_not_terminated, test_mode=test_mode)
-                
-            cpu_actions = actions.to("cpu").numpy()
+                origin_actions = self.mac.select_actions(self.batch, t_ep=self.t, t_env=self.t_env,
+                                                         bs=envs_not_terminated, test_mode=test_mode)
+                masker_actions = self.masker_mac.select_actions(self.masker_batch, t_ep=self.t,
+                                                                t_env=self.masker_t_env, bs=envs_not_terminated,
+                                                                test_mode=test_mode)
+
+            cpu_actions = origin_actions.to("cpu").numpy()
+            cpu_masker_actions = masker_actions.to("cpu").numpy()
 
             # Update the actions taken
             actions_chosen = {
-                "actions": actions.unsqueeze(1).to("cpu"),
+                "actions": origin_actions.unsqueeze(1).to("cpu"),
+            }
+            masker_actions_chosen = {
+                "actions": masker_actions.unsqueeze(1).to("cpu"),
             }
             if save_probs:
                 actions_chosen["probs"] = probs.unsqueeze(1).to("cpu")
-            
-            self.batch.update(actions_chosen, bs=envs_not_terminated, ts=self.t, mark_filled=False)
+                masker_actions_chosen["probs"] = masker_probs.unsqueeze(1).to("cpu")
 
+            self.batch.update(actions_chosen, bs=envs_not_terminated, ts=self.t, mark_filled=False)
+            self.masker_batch.update(masker_actions_chosen, bs=envs_not_terminated, ts=self.t, mark_filled=False)
             # Send actions to each env
             action_idx = 0
             for idx, parent_conn in enumerate(self.parent_conns):
-                if idx in envs_not_terminated: # We produced actions for this env
-                    if not terminated[idx]: # Only send the actions to the env if it hasn't terminated
-                        parent_conn.send(("step", cpu_actions[action_idx]))
-                    action_idx += 1 # actions is not a list over every env
+                if idx in envs_not_terminated:  # We produced actions for this env
+                    if not terminated[idx]:  # Only send the actions to the env if it hasn't terminated
+                        final_actions = mask_actions(cpu_actions[action_idx], masker_actions[action_idx],
+                                                     self.pre_transition_data["avail_actions"][action_idx])
+                        parent_conn.send(("step", final_actions))
+                    action_idx += 1  # actions is not a list over every env
 
             # Update envs_not_terminated
             envs_not_terminated = [b_idx for b_idx, termed in enumerate(terminated) if not termed]
@@ -135,12 +170,21 @@ class ParallelRunner:
                 break
 
             # Post step data we will insert for the current timestep
-            post_transition_data = {
+            self.post_transition_data = {
+                "reward": [],
+                "terminated": []
+            }
+            self.post_transition_data_masker = {
                 "reward": [],
                 "terminated": []
             }
             # Data for the next step we will insert in order to select an action
-            pre_transition_data = {
+            self.pre_transition_data = {
+                "state": [],
+                "avail_actions": [],
+                "obs": []
+            }
+            self.pre_transition_data_masker = {
                 "state": [],
                 "avail_actions": [],
                 "obs": []
@@ -151,7 +195,8 @@ class ParallelRunner:
                 if not terminated[idx]:
                     data = parent_conn.recv()
                     # Remaining data for this current timestep
-                    post_transition_data["reward"].append((data["reward"],))
+                    self.post_transition_data["reward"].append((data["reward"],))
+                    self.post_transition_data_masker["reward"].append((data["reward"],))
 
                     episode_returns[idx] += data["reward"]
                     episode_lengths[idx] += 1
@@ -164,28 +209,35 @@ class ParallelRunner:
                     if data["terminated"] and not data["info"].get("episode_limit", False):
                         env_terminated = True
                     terminated[idx] = data["terminated"]
-                    post_transition_data["terminated"].append((env_terminated,))
+                    self.post_transition_data["terminated"].append((env_terminated,))
+                    self.post_transition_data_masker["terminated"].append((env_terminated,))
 
                     # Data for the next timestep needed to select an action
-                    pre_transition_data["state"].append(data["state"])
-                    pre_transition_data["avail_actions"].append(data["avail_actions"])
-                    pre_transition_data["obs"].append(data["obs"])
+                    self.pre_transition_data["state"].append(data["state"])
+                    self.pre_transition_data["avail_actions"].append(data["avail_actions"])
+                    self.pre_transition_data["obs"].append(data["obs"])
+                    self.pre_transition_data_masker["state"].append(data["state"])
+                    self.pre_transition_data_masker["avail_actions"].append(data["avail_masker_actions"])
+                    self.pre_transition_data_masker["obs"].append(data["obs"])
 
             # Add post_transiton data into the batch
-            self.batch.update(post_transition_data, bs=envs_not_terminated, ts=self.t, mark_filled=False)
+            self.batch.update(self.post_transition_data, bs=envs_not_terminated, ts=self.t, mark_filled=False)
+            self.masker_batch.update(self.post_transition_data_masker, bs=envs_not_terminated, ts=self.t, mark_filled=False)
 
             # Move onto the next timestep
             self.t += 1
 
             # Add the pre-transition data
-            self.batch.update(pre_transition_data, bs=envs_not_terminated, ts=self.t, mark_filled=True)
+            self.batch.update(self.pre_transition_data, bs=envs_not_terminated, ts=self.t, mark_filled=True)
+            self.masker_batch.update(self.pre_transition_data_masker, bs=envs_not_terminated, ts=self.t, mark_filled=True)
 
         if not test_mode:
             self.t_env += self.env_steps_this_run
+            self.masker_t_env += self.env_steps_this_run
 
         # Get stats back for each env
         for parent_conn in self.parent_conns:
-            parent_conn.send(("get_stats",None))
+            parent_conn.send(("get_stats", None))
 
         env_stats = []
         for parent_conn in self.parent_conns:
@@ -206,22 +258,22 @@ class ParallelRunner:
         n_test_runs = max(1, self.args.test_nepisode // self.batch_size) * self.batch_size
         if test_mode and (len(self.test_returns) == n_test_runs):
             self._log(cur_returns, cur_stats, log_prefix)
-        elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
+        elif self.masker_t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(cur_returns, cur_stats, log_prefix)
             if hasattr(self.mac.action_selector, "epsilon"):
-                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.t_env)
-            self.log_train_stats_t = self.t_env
+                self.logger.log_stat("epsilon", self.mac.action_selector.epsilon, self.masker_t_env)
+            self.log_train_stats_t = self.masker_t_env
 
-        return self.batch
+        return self.masker_batch
 
     def _log(self, returns, stats, prefix):
-        self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.t_env)
-        self.logger.log_stat(prefix + "return_std", np.std(returns), self.t_env)
+        self.logger.log_stat(prefix + "return_mean", np.mean(returns), self.masker_t_env)
+        self.logger.log_stat(prefix + "return_std", np.std(returns), self.masker_t_env)
         returns.clear()
 
         for k, v in stats.items():
             if k != "n_episodes":
-                self.logger.log_stat(prefix + k + "_mean" , v/stats["n_episodes"], self.t_env)
+                self.logger.log_stat(prefix + k + "_mean", v / stats["n_episodes"], self.masker_t_env)
         stats.clear()
 
 
@@ -242,6 +294,7 @@ def env_worker(remote, env_fn):
                 # Data for the next timestep needed to pick an action
                 "state": state,
                 "avail_actions": avail_actions,
+                "avail_masker_actions": env.get_avail_masker_actions(),
                 "obs": obs,
                 # Rest of the data for the current timestep
                 "reward": reward,
@@ -253,6 +306,7 @@ def env_worker(remote, env_fn):
             remote.send({
                 "state": env.get_state(),
                 "avail_actions": env.get_avail_actions(),
+                "avail_masker_actions": env.get_avail_masker_actions(),
                 "obs": env.get_obs()
             })
         elif cmd == "close":
@@ -271,12 +325,14 @@ class CloudpickleWrapper():
     """
     Uses cloudpickle to serialize contents (otherwise multiprocessing tries to use pickle)
     """
+
     def __init__(self, x):
         self.x = x
+
     def __getstate__(self):
         import cloudpickle
         return cloudpickle.dumps(self.x)
+
     def __setstate__(self, ob):
         import pickle
         self.x = pickle.loads(ob)
-
