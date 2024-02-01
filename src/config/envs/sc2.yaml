@@ -40,7 +40,11 @@ runner_log_interval: 10000
 learner_log_interval: 10000
 t_max: 2050000
 run_mode: "Train"
-checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/27m_vs_30m_qmix_large_env=8_adam_td_lambda__2024-01-12_20-43-47"
+#checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/1c3s5z_qmix_env=8_adam_td_lambda__2024-01-08_15-24-42"
+#checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/27m_vs_30m_qmix_large_env=8_adam_td_lambda__2024-01-12_20-43-47"
+#checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/8m_qmix_env=8_adam_td_lambda__2024-01-14_14-38-05"
+#checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/25m_qmix_large_env=8_adam_td_lambda__2024-01-08_18-39-28"
+#checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/bane_vs_bane_qmix_env=8_adam_td_lambda__2024-01-10_20-49-18"
 #load_step: 1004113
 
 ## Start (code for test). if train: comment followings; elif test: uncomment.
@@ -49,5 +53,9 @@ checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/models/27m_vs_30m_qmix_lar
 #save_model: True
 #save_replay: True
 #masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/1c3s5z_qmix_env=8_adam_td_lambda__2024-01-24_21-23-41"
-##masker_load_step: 1004113
+#masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/27m_vs_30m_qmix_large_env=8_adam_td_lambda__2024-01-26_19-11-44"
+#masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/8m_qmix_env=8_adam_td_lambda__2024-01-27_17-52-30"
+#masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/25m_qmix_large_env=8_adam_td_lambda__2024-01-27_22-27-51"
+#masker_checkpoint_path: "/home/dell/cjm/pymarl2_mask/results/masker_models/bane_vs_bane_qmix_env=8_adam_td_lambda__2024-01-27_19-58-49"
+#masker_load_step: 2820033
 ## End (code for test).

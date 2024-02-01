@@ -210,7 +210,8 @@ def run_sequential(args, logger):
 
         if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
             model_save_time = runner.t_env
-            save_path = os.path.join(args.local_results_path, "models", f"{args.env_args['map_name']}_{args.unique_token}", str(runner.t_env))
+            save_path = os.path.join(args.local_results_path, "models",
+                                     f"{args.env_args['map_name']}_{args.unique_token}", str(runner.t_env))
             # save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)

@@ -1,10 +1,12 @@
 import random
+from os.path import dirname, abspath, join
 
 from envs import REGISTRY as env_REGISTRY
 from functools import partial
 from components.episode_buffer import EpisodeBatch
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 
 def mask_actions(origin_actions, mask, avail_actions):
@@ -22,7 +24,8 @@ def replace_action_by_id(origin_actions, target_ids, avail_actions):
     new_actions = []
     for agent_id, agent_action in enumerate(origin_actions):
         if agent_id in target_ids:   # mask
-            indices_avail_actions = [i for i, value in enumerate(avail_actions[agent_id]) if value == 1]
+            avail_action = avail_actions[agent_id]
+            indices_avail_actions = [i for i, value in enumerate(avail_action) if value == 1]
             new_actions.append(random.choice(indices_avail_actions))
         else:
             new_actions.append(agent_action)
@@ -121,13 +124,27 @@ class EpisodeRunner:
                 mask_probs = [round(x, 4) for x in probs[:, 1]]
                 agent_rank = np.argsort(probs[:, 1])
                 alive_agent_rank = agent_rank[probs[:, 1][agent_rank] != 0]
-                print(f"game time step: {self.t}. masker result: {cpu_masker_actions[0]}, agent importance rank: {alive_agent_rank}, prob: {mask_probs}")
+                print(f"Game time step: {self.t}. Masker result: {cpu_masker_actions[0]}. Agent importance rank: {alive_agent_rank}. prob: {mask_probs}")
 
-                # target_ids = [agent_rank[-1]]
-                # target_ids = np.random.choice(agent_rank, size=1)
-                # final_actions = replace_action_by_id(origin_actions[0], target_ids, pre_transition_data["avail_actions"][0])
+                # agent_x_positions = [round(self.env.agents[i].pos.x, 2) for i in alive_agent_rank]
+                # agent_y_positions = [round(self.env.agents[i].pos.y, 2) for i in alive_agent_rank]
+                # plt.scatter(agent_x_positions, agent_y_positions)
+                # for i in range(len(agent_x_positions)):
+                #     plt.text(agent_x_positions[i], agent_y_positions[i], str(agent_rank[i]), fontsize=10, ha='left')
+                # plt.title(f"Game time step: {self.t}")
+                # plt.xlim(5, 25)  # 设置 x 轴的范围
+                # plt.ylim(5, 25)  # 设置 y 轴的范围
+                # plt.savefig(f"{self.args.file_obs_path}/Game-{self.env.battles_game}_Step-{self.t}.png")
+                # plt.clf()
+                # agent_rank_positions = [(round(self.env.agents[i].pos.x, 2), round(self.env.agents[i].pos.y, 2)) for i in alive_agent_rank]
+                # print(f"Positions ranked by importance: {agent_rank_positions}")
+
                 # final_actions = origin_actions[0]
-                final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
+                # final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
+                # target_ids = [agent_rank[0]]    # max important (min mask prob)
+                # target_ids = [agent_rank[-1]]
+                target_ids = np.random.choice(agent_rank, size=1)
+                final_actions = replace_action_by_id(origin_actions[0], target_ids, pre_transition_data["avail_actions"][0])
             else:
                 final_actions = mask_actions(origin_actions[0], masker_actions[0], pre_transition_data["avail_actions"][0])
 

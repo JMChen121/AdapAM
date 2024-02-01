@@ -102,8 +102,6 @@ if __name__ == '__main__':
     config_dict = recursive_dict_update(config_dict, env_config)
     config_dict = recursive_dict_update(config_dict, alg_config)
 
-    # now add all the config to sacred
-    ex.add_config(config_dict)
 
     # Save to disk by default for sacred
     map_name = parse_command(params, "env_args.map_name", config_dict['env_args']['map_name'])
@@ -111,6 +109,10 @@ if __name__ == '__main__':
     run_mode = parse_command(params, "run_mode", config_dict['run_mode'])
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     file_obs_path = join(results_path, "sacred", map_name, run_mode, f"{algo_name}_{current_time}")
+    config_dict["file_obs_path"] = file_obs_path
+
+    # now add all the config to sacred
+    ex.add_config(config_dict)
 
     logger.info("Saving to FileStorageObserver in {}.".format(file_obs_path))
     ex.observers.append(FileStorageObserver.create(file_obs_path))

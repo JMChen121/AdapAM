@@ -10,7 +10,7 @@ from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
 
 from learners import REGISTRY as le_REGISTRY
-from runners import MASKER_REGISTRY as r_REGISTRY
+from runners import MASKER_REGISTRY as masker_r_REGISTRY
 from controllers import REGISTRY as mac_REGISTRY
 from controllers import MASKER_REGISTRY as masker_mac_REGISTRY
 from components.episode_buffer import ReplayBuffer
@@ -85,7 +85,7 @@ def evaluate_sequential(args, runner):
 
 def run_sequential(args, masker_args, logger):
     # Init runner so we can get env info
-    runner = r_REGISTRY[args.runner](args=args, logger=logger)
+    runner = masker_r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
@@ -242,10 +242,6 @@ def run_sequential(args, masker_args, logger):
             # masker_learner should handle saving/loading -- delegate actor save/load to mac,
             # use appropriate filenames to do critics, optimizer states
             masker_learner.save_models(save_path)
-
-            # learner should handle saving/loading -- delegate actor save/load to mac,
-            # use appropriate filenames to do critics, optimizer states
-            learner.save_models(save_path)
 
         episode += args.batch_size_run
 

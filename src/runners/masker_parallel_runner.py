@@ -160,7 +160,7 @@ class ParallelRunner:
                     if not terminated[idx]:  # Only send the actions to the env if it hasn't terminated
                         final_actions = mask_actions(cpu_actions[action_idx], masker_actions[action_idx],
                                                      self.pre_transition_data["avail_actions"][action_idx])
-                        parent_conn.send(("step", final_actions))
+                        parent_conn.send(("step", (final_actions, cpu_masker_actions)))
                     action_idx += 1  # actions is not a list over every env
 
             # Update envs_not_terminated
@@ -195,10 +195,11 @@ class ParallelRunner:
                 if not terminated[idx]:
                     data = parent_conn.recv()
                     # Remaining data for this current timestep
-                    self.post_transition_data["reward"].append((data["reward"],))
-                    self.post_transition_data_masker["reward"].append((data["reward"],))
+                    reward = data["reward"]
+                    self.post_transition_data["reward"].append((reward,))
+                    self.post_transition_data_masker["reward"].append((reward,))
 
-                    episode_returns[idx] += data["reward"]
+                    episode_returns[idx] += reward
                     episode_lengths[idx] += 1
                     if not test_mode:
                         self.env_steps_this_run += 1
@@ -283,9 +284,11 @@ def env_worker(remote, env_fn):
     while True:
         cmd, data = remote.recv()
         if cmd == "step":
-            actions = data
+            actions, masker_actions = data
             # Take a step in the environment
-            reward, terminated, env_info = env.step(actions)
+            env_reward, terminated, env_info = env.step(actions)
+            mask_reward = np.sum(masker_actions == 1) * 0.002
+            reward = env_reward + mask_reward
             # Return the observations, avail_actions and state to make the next action
             state = env.get_state()
             avail_actions = env.get_avail_actions()
