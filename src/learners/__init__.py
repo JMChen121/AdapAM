@@ -10,6 +10,9 @@ from .dmaq_qatten_learner import DMAQ_qattenLearner
 from .offpg_learner import OffPGLearner
 from .fmac_learner import FMACLearner
 
+from .nq_learner_aia import NQLearnerAIA
+from .sac_learner_saia import SACLearnerSAIA
+
 REGISTRY = {}
 
 REGISTRY["q_learner"] = QLearner
@@ -23,3 +26,9 @@ REGISTRY["max_q_learner"] = MAXQLearner
 REGISTRY["dmaq_qatten_learner"] = DMAQ_qattenLearner
 REGISTRY["offpg_learner"] = OffPGLearner
 REGISTRY["fmac_learner"] = FMACLearner
+
+AIA_REGISTRY = {}
+AIA_REGISTRY["aia_learner"] = NQLearnerAIA
+
+SAIA_REGISTRY = {}
+SAIA_REGISTRY["saia_learner"] = SACLearnerSAIA

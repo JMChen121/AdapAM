@@ -10,7 +10,7 @@ from torch.optim import RMSprop, Adam
 import numpy as np
 from utils.th_utils import get_parameters_num
 
-class NQLearner:
+class NQLearnerAIA:
     def __init__(self, mac, scheme, logger, args):
         self.args = args
         self.mac = mac
@@ -54,48 +54,64 @@ class NQLearner:
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int, per_weight=None):
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
-        actions = batch["actions"][:, :-1]
+        actions1 = batch["actions1"][:, :-1]
+        actions2 = batch["actions2"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         mask = batch["filled"][:, :-1].float()
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
-        avail_actions = batch["avail_actions"]
+        avail_actions1 = batch["avail_actions1"]
+        avail_actions2 = batch["avail_actions2"]
         
         # Calculate estimated Q-Values
         self.mac.agent.train()
-        mac_out = []
+        mac_out1 = []
+        mac_out2 = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            agent_outs = self.mac.forward(batch, t=t)
-            mac_out.append(agent_outs)
-        mac_out = th.stack(mac_out, dim=1)  # Concat over time
+            agent_outs1, agent_outs2 = self.mac.forward(batch, t=t)
+            mac_out1.append(agent_outs1)
+            mac_out2.append(agent_outs2)
+        mac_out1 = th.stack(mac_out1, dim=1)  # Concat over time
+        mac_out2 = th.stack(mac_out2, dim=1)  # Concat over time
 
         # Pick the Q-Values for the actions taken by each agent
-        chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
-        chosen_action_qvals_ = chosen_action_qvals
+        chosen_action_qvals1 = th.gather(mac_out1[:, :-1], dim=3, index=actions1).squeeze(3)  # Remove the last dim
+        chosen_action_qvals2 = th.gather(mac_out2[:, :-1], dim=3, index=actions2).squeeze(3)  # Remove the last dim
+        chosen_action_qvals = chosen_action_qvals1 + chosen_action_qvals2
 
         # Calculate the Q-Values necessary for the target
         with th.no_grad():
             self.target_mac.agent.train()
-            target_mac_out = []
+            target_mac_out1 = []
+            target_mac_out2 = []
             self.target_mac.init_hidden(batch.batch_size)
             for t in range(batch.max_seq_length):
-                target_agent_outs = self.target_mac.forward(batch, t=t)
-                target_mac_out.append(target_agent_outs)
+                target_agent_outs1, target_agent_outs2 = self.target_mac.forward(batch, t=t)
+                target_mac_out1.append(target_agent_outs1)
+                target_mac_out2.append(target_agent_outs2)
 
             # We don't need the first timesteps Q-Value estimate for calculating targets
-            target_mac_out = th.stack(target_mac_out, dim=1)  # Concat across time
+            target_mac_out1 = th.stack(target_mac_out1, dim=1)  # Concat across time
+            target_mac_out2 = th.stack(target_mac_out2, dim=1)  # Concat across time
 
             # Max over target Q-Values/ Double q learning
-            mac_out_detach = mac_out.clone().detach()
-            mac_out_detach[avail_actions == 0] = -9999999
-            cur_max_actions = mac_out_detach.max(dim=3, keepdim=True)[1]
-            target_max_qvals = th.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
+            mac_out_detach1 = mac_out1.clone().detach()
+            mac_out_detach1[avail_actions1 == 0] = -9999999
+            mac_out_detach2 = mac_out2.clone().detach()
+            mac_out_detach2[avail_actions2 == 0] = -9999999
+            cur_max_actions1 = mac_out_detach1.max(dim=3, keepdim=True)[1]
+            cur_max_actions2 = mac_out_detach2.max(dim=3, keepdim=True)[1]
+            target_max_qvals1 = th.gather(target_mac_out1, 3, cur_max_actions1).squeeze(3)
+            target_max_qvals2 = th.gather(target_mac_out2, 3, cur_max_actions2).squeeze(3)
+            target_max_qvals = target_max_qvals1 + target_max_qvals2
             
             # Calculate n-step Q-Learning targets
             target_max_qvals = self.target_mixer(target_max_qvals, batch["state"])
 
             if getattr(self.args, 'q_lambda', False):
-                qvals = th.gather(target_mac_out, 3, batch["actions"]).squeeze(3)
+                qvals1 = th.gather(target_mac_out1, 3, batch["actions1"]).squeeze(3)
+                qvals2 = th.gather(target_mac_out2, 3, batch["actions2"]).squeeze(3)
+                qvals = qvals1 + qvals2
                 qvals = self.target_mixer(qvals, batch["state"])
 
                 targets = build_q_lambda_targets(rewards, terminated, mask, target_max_qvals, qvals,
@@ -118,7 +134,6 @@ class NQLearner:
             per_weight = th.from_numpy(per_weight).unsqueeze(-1).to(device=self.device)
             masked_td_error = masked_td_error.sum(1) * per_weight
 
-        # mean of batch * episode * 1
         loss = L_td = masked_td_error.sum() / mask.sum()
 
         # Optimise
@@ -140,9 +155,9 @@ class NQLearner:
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
             
-            # print estimated matrix
-            if self.args.env == "one_step_matrix_game":
-                print_matrix_status(batch, self.mixer, mac_out)
+            # # print estimated matrix
+            # if self.args.env == "one_step_matrix_game":
+            #     print_matrix_status(batch, self.mixer, mac_out)
 
         # return info
         info = {}

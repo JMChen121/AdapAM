@@ -84,6 +84,8 @@ class MultinomialActionSelector():
 
         self.test_greedy = getattr(args, "test_greedy", True)
         self.save_probs = getattr(self.args, 'save_probs', False)
+        '''My code: for aia'''
+        self.important_num = getattr(self.args, 'important_num', -1)
 
     def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
         masked_policies = agent_inputs.clone()
@@ -91,21 +93,38 @@ class MultinomialActionSelector():
         masked_policies = masked_policies / (masked_policies.sum(-1, keepdim=True) + 1e-8)
 
         if test_mode and self.test_greedy:
+            indices = (masked_policies[:, :, 0] == masked_policies[:, :, 0].max()).nonzero(as_tuple=True)[1]
+            indices = indices[th.randperm(indices.size(0))]
+            important_indices = indices[:self.important_num]
+
             picked_actions = masked_policies.max(dim=2)[1]
+            final_picked_actions = th.zeros_like(picked_actions)
+            final_picked_actions[:, important_indices] = 1
+            new_masked_policies = masked_policies
         else:
             self.epsilon = self.schedule.eval(t_env)
 
             epsilon_action_num = (avail_actions.sum(-1, keepdim=True) + 1e-8)
-            masked_policies = ((1 - self.epsilon) * masked_policies
-                               + avail_actions * self.epsilon / epsilon_action_num)
-            masked_policies[avail_actions == 0] = 0
+            new_masked_policies = ((1 - self.epsilon) * masked_policies
+                                   + avail_actions * self.epsilon / epsilon_action_num)
+            new_masked_policies[avail_actions == 0] = 0
 
-            picked_actions = Categorical(masked_policies).sample().long()
+            '''My Code'''
+            if self.important_num == -1:
+                final_picked_actions = Categorical(new_masked_policies).sample().long()
+            else:
+                indices = (new_masked_policies[:,:,0] == new_masked_policies[:,:,0].max()).nonzero(as_tuple=True)[1]
+                indices = indices[th.randperm(indices.size(0))]
+                important_indices = indices[:self.important_num]
+
+                # picked_actions = Categorical(new_masked_policies).sample().long()
+                final_picked_actions = th.zeros(new_masked_policies.shape[0], new_masked_policies.shape[1])
+                final_picked_actions[:, important_indices] = 1
 
         if self.save_probs:
-            return picked_actions, masked_policies
+            return final_picked_actions, new_masked_policies
         else:
-            return picked_actions
+            return final_picked_actions, new_masked_policies
 
 
 REGISTRY["multinomial"] = MultinomialActionSelector

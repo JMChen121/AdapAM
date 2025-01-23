@@ -26,15 +26,32 @@
 env: gfootball
 
 env_args:
-  map_name: "academy_counterattack_hard"
+  map_name: "academy_counterattack_easy"
   representation: "simple115"
   num_agents: 4
   time_limit: 150
+  write_full_episode_dumps: False
+  write_goal_dumps: False
 
 test_greedy: True
-test_nepisode: 32
+test_nepisode: 40
 test_interval: 10000
 log_interval: 10000
 runner_log_interval: 10000
 learner_log_interval: 10000
-t_max: 2050000
+t_max: 2000000
+
+need_attack: False
+noise_w: 0.1
+att_size: 3
+
+need_patch: True
+need_collect: False
+patch_budget: 20
+ep_reward_th: 6
+diff_th: 0.5
+
+checkpoint_path: ""
+
+###### My code: for SAIA
+#saia_checkpoint_path: ""

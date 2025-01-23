@@ -19,12 +19,15 @@ buffer_cpu_only: True # If true we won't keep all of the replay buffer in vram
 # --- Logging options ---
 use_tensorboard: False # Log results to tensorboard
 save_model: True # Save the models to disk
-save_model_interval: 50000 # Save models after this many timesteps
+save_model_interval: 20000 # Save models after this many timesteps
 checkpoint_path: "" # Load a checkpoint from this path
 masker_checkpoint_path: "" # Load a masker checkpoint from this path
+aia_checkpoint_path: "" # Load a aia checkpoint from this path
+saia_checkpoint_path: "" # Load a aia checkpoint from this path
 evaluate: False # Evaluate model for test_nepisode episodes and quit (no training)
 load_step: 0 # Load model trained on this many timesteps (0 if choose max possible)
 masker_load_step: 0 # Load masker model trained on this many timesteps (0 if choose max possible)
+aia_load_step: 0 # Load aia model trained on this many timesteps (0 if choose max possible)
 save_replay: False # Saving the replay of the model loaded from checkpoint_path
 local_results_path: "results" # Path for local results
 
@@ -48,6 +51,17 @@ obs_last_action: True # Include the agent's last action (one_hot) in the observa
 repeat_id: 1
 label: "default_label"
 
-run: "default"
-# --- My Code: run for masker ---
+#run: "default"
+# ------ My Code: run for masker and aia ------
 #run: "masker"
+#run: "aia"
+run: "saia"
+# args for sac of saia
+tau: 0.005
+alpha: 0.2
+policy: "Gaussian"                # Policy Type: Gaussian | Deterministic (default: Gaussian)
+target_update_interval_sac: 1         # Value target update per no. of updates per step (default: 1)
+automatic_entropy_tuning: False   # Automatically adjust alpha (default: False)
+updates_per_step: 1               # 'model updates per simulator step (default: 1)'
+
+ac_reward: 0.05   # reward for action change.

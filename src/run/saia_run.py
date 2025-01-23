@@ -3,6 +3,8 @@ import os
 import pprint
 import time
 import threading
+
+import numpy as np
 import torch as th
 from types import SimpleNamespace as SN
 from utils.logging import Logger
@@ -10,9 +12,10 @@ from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
 
 from learners import REGISTRY as le_REGISTRY
-from runners import MASKER_REGISTRY as masker_r_REGISTRY
+from learners import SAIA_REGISTRY as saia_le_REGISTRY
+from runners import SAIA_REGISTRY as saia_r_REGISTRY
 from controllers import REGISTRY as mac_REGISTRY
-from controllers import MASKER_REGISTRY as masker_mac_REGISTRY
+from controllers import SAIA_REGISTRY as saia_mac_REGISTRY
 from components.episode_buffer import ReplayBuffer
 from components.transforms import OneHot
 
@@ -30,7 +33,7 @@ def run(_run, _config, _log):
     _config = args_sanity_check(_config, _log)
 
     args = SN(**_config)
-    masker_args = SN(**_config)
+    saia_args = SN(**_config)
     args.device = "cuda" if args.use_cuda else "cpu"
 
     # setup loggers
@@ -45,7 +48,7 @@ def run(_run, _config, _log):
     # configure tensorboard logger
     unique_token = "{}__{}".format(args.name, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     args.unique_token = unique_token
-    masker_args.unique_token = unique_token
+    saia_args.unique_token = unique_token
     if args.use_tensorboard:
         tb_logs_direc = os.path.join(dirname(dirname(dirname(abspath(__file__)))), "results", "tb_logs")
         tb_exp_direc = os.path.join(tb_logs_direc, "{}").format(unique_token)
@@ -55,7 +58,7 @@ def run(_run, _config, _log):
     logger.setup_sacred(_run)
 
     # Run and train
-    run_sequential(args=args, masker_args=masker_args, logger=logger)
+    run_sequential(args=args, saia_args=saia_args, logger=logger)
 
     # Clean up after finishing
     print("Exiting Main")
@@ -86,19 +89,12 @@ def run_exploration(args, runner):
 
 
 def evaluate_sequential(args, runner):
-    patch_pack = None
-    if args.need_patch and args.need_collect:
-        patch_pack = run_exploration(args, runner)
 
     avg_return_list = []
-    for j in range(0, 2):
+    for j in range(0, 3):
         ep_returns = []
         for i in range(args.test_nepisode):
-            if args.need_patch:
-                assert patch_pack is not None, "Please generate or load a patch pack before this."
-                _, e_r = runner.run_with_patch(patch_pack)
-            else:
-                _, e_r = runner.run(test_mode=True)
+            _, e_r = runner.run(test_mode=True)
             ep_returns.append(e_r)
             print(f"------Iter: {j+1}, game NO: {i+1}, game_episode_return: {e_r}------")
 
@@ -109,15 +105,15 @@ def evaluate_sequential(args, runner):
         avg_return = sum(ep_returns)/args.test_nepisode
         print(f"AVG EP returns: {avg_return}")
         avg_return_list.append(avg_return)
-    print(f"AVG EP returns: {avg_return_list}")
+    print(f"AVG EP returns: {avg_return_list}, AVG: {np.mean(avg_return_list)}")
     time.sleep(6)
     runner.close_env()
 
 
-def run_sequential(args, masker_args, logger):
+def run_sequential(args, saia_args, logger):
 
     # Init runner so we can get env info
-    runner = masker_r_REGISTRY[args.runner](args=args, logger=logger)
+    runner = saia_r_REGISTRY[args.runner](args=args, logger=logger)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
@@ -126,14 +122,14 @@ def run_sequential(args, masker_args, logger):
     args.state_shape = env_info["state_shape"]
     args.accumulated_episodes = getattr(args, "accumulated_episodes", None)
 
-    masker_args.n_agents = env_info["n_agents"]
-    masker_args.n_actions = 2
-    masker_args.state_shape = env_info["state_shape"]
-    masker_args.accumulated_episodes = getattr(args, "accumulated_episodes", None)
+    saia_args.n_agents = env_info["n_agents"]
+    saia_args.n_actions = [args.n_agents + 1, env_info["obs_shape"]]
+    saia_args.state_shape = env_info["state_shape"]
+    saia_args.accumulated_episodes = getattr(args, "accumulated_episodes", None)
+    saia_args.agent = args.agent_saia
 
     if getattr(args, 'agent_own_state_size', False):
-        args.agent_own_state_size = get_agent_own_state_size(args.env_args, args.run_mode)
-        masker_args.agent_own_state_size = get_agent_own_state_size(masker_args.env_args, masker_args.run_mode)
+        args.agent_own_state_size = get_agent_own_state_size(args.env_args)
 
     # Default/Base scheme
     scheme = {
@@ -145,51 +141,54 @@ def run_sequential(args, masker_args, logger):
         "reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
-    """My Code: masker scheme"""
-    masker_scheme = {
+    """My Code: saia scheme"""
+    saia_scheme = {
         "state": {"vshape": env_info["state_shape"]},
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
-        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
-        "avail_actions": {"vshape": (2), "group": "agents", "dtype": th.int},
-        "probs": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.float},
+        "actions1": {"vshape": (1,), "group": "saia_agent", "dtype": th.long},
+        "actions2": {"vshape": (env_info["obs_shape"],), "dtype": th.float},
+        "avail_actions1": {"vshape": (env_info["n_agents"] + 1), "group": "saia_agent", "dtype": th.int},
+        "actions1_probs": {"vshape": (env_info["n_agents"] + 1), "group": "saia_agent", "dtype": th.float},
         "reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
     groups = {
-        "agents": args.n_agents
+        "agents": args.n_agents,
+        "saia_agent": 1
     }
     preprocess = {
         "actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])
     }
-    """My Code: masker preprocess"""
-    masker_preprocess = {
-        "actions": ("actions_onehot", [OneHot(out_dim=masker_args.n_actions)])
+    """My Code: saia preprocess"""
+    saia_preprocess = {
+        "actions1": ("actions1_onehot", [OneHot(out_dim=saia_args.n_actions[0])])
     }
 
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                           preprocess=preprocess,
                           device="cpu" if args.buffer_cpu_only else args.device)
-    masker_buffer = ReplayBuffer(masker_scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
-                                 preprocess=masker_preprocess,
+    saia_buffer = ReplayBuffer(saia_scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                                 preprocess=saia_preprocess,
                                  device="cpu" if args.buffer_cpu_only else args.device)
-    # Setup multiagent controller here
+    # Setup multi-agent controller here
     mac = mac_REGISTRY[args.mac](buffer.scheme, groups, args)
-    """My Code: Setup masker agent controller here"""
-    masker_mac = masker_mac_REGISTRY[masker_args.mac](masker_buffer.scheme, groups, masker_args)
+    """My Code: Setup saia agent controller here"""
+    saia_mac = saia_mac_REGISTRY[saia_args.mac](saia_buffer.scheme, groups, saia_args)
 
     # Give runner the scheme
     runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac,
-                 masker_mac=masker_mac, masker_preprocess=masker_preprocess, masker_scheme=masker_scheme)
+                 saia_mac=saia_mac, saia_preprocess=saia_preprocess, saia_scheme=saia_scheme)
 
     # Learner
     learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args)
-    """My Code: Masker Learner"""
-    masker_learner = le_REGISTRY[masker_args.learner](masker_mac, masker_buffer.scheme, logger, masker_args)
+    """My Code: AIA Learner"""
+    saia_args.learner = "saia_learner"
+    saia_learner = saia_le_REGISTRY[saia_args.learner](saia_mac, saia_buffer.scheme, logger, saia_args)
 
-    if masker_args.use_cuda:
+    if saia_args.use_cuda:
         learner.cuda()
         """My Code"""
-        masker_learner.cuda()
+        saia_learner.cuda()
 
     # Load learner from checkpoint_path
     assert args.checkpoint_path != "", "Need checkpoint_path for agents_model."
@@ -199,13 +198,13 @@ def run_sequential(args, masker_args, logger):
     else:
         runner.t_env = load_checkpoint(args.checkpoint_path, args.load_step, learner, logger)
 
-    # Load masker learner from checkpoint_path
-    if args.masker_checkpoint_path != "":
-        if not os.path.isdir(args.masker_checkpoint_path):
-            logger.console_logger.info(f"Masker checkpoint directory {args.masker_checkpoint_path} doesn't exist!")
+    # Load saia learner from checkpoint_path
+    if args.saia_checkpoint_path != "":
+        if not os.path.isdir(args.saia_checkpoint_path):
+            logger.console_logger.info(f"AIA checkpoint directory {args.saia_checkpoint_path} doesn't exist!")
             return
         else:
-            runner.masker_t_env = load_checkpoint(args.masker_checkpoint_path, args.masker_load_step, masker_learner, logger)
+            runner.saia_t_env = load_checkpoint(args.saia_checkpoint_path, args.saia_load_step, saia_learner, logger)
 
     if args.evaluate or args.save_replay or args.run_mode == "Test":
         evaluate_sequential(args, runner)
@@ -222,21 +221,22 @@ def run_sequential(args, masker_args, logger):
 
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
 
-    while runner.masker_t_env <= args.t_max:
+    updates = 0
+    while runner.saia_t_env <= args.t_max:
 
         # Run for a whole episode at a time
 
         with th.no_grad():
-            episode_batch = runner.run(test_mode=False)
+            episode_batch, _ = runner.run(test_mode=False)
             # buffer.insert_episode_batch(episode_batch)
-            masker_buffer.insert_episode_batch(episode_batch)
+            saia_buffer.insert_episode_batch(episode_batch)
 
-        if masker_buffer.can_sample(args.batch_size):
+        if saia_buffer.can_sample(args.batch_size):
             next_episode = episode + args.batch_size_run
             if args.accumulated_episodes and next_episode % args.accumulated_episodes != 0:
                 continue
 
-            episode_sample = masker_buffer.sample(args.batch_size)
+            episode_sample = saia_buffer.sample(args.batch_size)
 
             # Truncate batch to only filled timesteps
             max_ep_t = episode_sample.max_t_filled()
@@ -246,41 +246,40 @@ def run_sequential(args, masker_args, logger):
                 episode_sample.to(args.device)
 
             # learner.train(episode_sample, runner.t_env, episode)
-            masker_learner.train(episode_sample, runner.masker_t_env, episode)
+            saia_learner.train(episode_sample, runner.saia_t_env, episode, updates)
+            updates += 1
             del episode_sample
 
         # Execute test runs once in a while
         n_test_runs = max(1, args.test_nepisode // runner.batch_size)
-        if (runner.masker_t_env - last_test_T) / args.test_interval >= 1.0:
+        if (runner.saia_t_env - last_test_T) / args.test_interval >= 1.0:
 
-            logger.console_logger.info("masker_t_env: {} / {}".format(runner.masker_t_env, args.t_max))
+            logger.console_logger.info("saia_t_env: {} / {}".format(runner.saia_t_env, args.t_max))
             logger.console_logger.info("Estimated time left: {}. Time passed: {}".format(
-                    time_left(last_time, last_test_T, runner.masker_t_env, args.t_max), time_str(time.time() - start_time)))
+                    time_left(last_time, last_test_T, runner.saia_t_env, args.t_max), time_str(time.time() - start_time)))
             last_time = time.time()
 
-            last_test_T = runner.masker_t_env
+            last_test_T = runner.saia_t_env
             for _ in range(n_test_runs):
                 runner.run(test_mode=True)
 
-        if args.save_model and (runner.masker_t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
-            model_save_time = runner.masker_t_env
-            save_path = os.path.join(args.local_results_path, "masker_models",
-                                     f"{args.env_args['map_name']}_{args.unique_token}", str(runner.masker_t_env))
-            # save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
-            # "results/models/{}".format(unique_token)
+        if args.save_model and (runner.saia_t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
+            model_save_time = runner.saia_t_env
+            save_path = os.path.join(args.local_results_path, "saia_models",
+                                     f"{args.env_args['map_name']}_{args.unique_token}", str(runner.saia_t_env))
             os.makedirs(save_path, exist_ok=True)
             logger.console_logger.info("Saving models to {}".format(save_path))
 
-            # masker_learner should handle saving/loading -- delegate actor save/load to mac,
+            # saia_learner should handle saving/loading -- delegate actor save/load to mac,
             # use appropriate filenames to do critics, optimizer states
-            masker_learner.save_models(save_path)
+            saia_learner.save_models(save_path)
 
         episode += args.batch_size_run
 
-        if (runner.masker_t_env - last_log_T) >= args.log_interval:
-            logger.log_stat("episode", episode, runner.masker_t_env)
+        if (runner.saia_t_env - last_log_T) >= args.log_interval:
+            logger.log_stat("episode", episode, runner.saia_t_env)
             logger.print_recent_stats()
-            last_log_T = runner.masker_t_env
+            last_log_T = runner.saia_t_env
 
     runner.close_env()
     logger.console_logger.info("Finished Training")

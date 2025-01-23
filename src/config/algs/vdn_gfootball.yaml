@@ -7,12 +7,18 @@ epsilon_start: 1.0
 epsilon_finish: 0.05
 epsilon_anneal_time: 100000
 
-runner: "parallel"
-batch_size_run: 16
+#run_mode: "Train"
+#runner: "parallel"
+#batch_size_run: 32
+
+run_mode: "Test"
+runner: "episode"
+batch_size_run: 1
+
 buffer_size: 2000
 batch_size: 128
 
-t_max: 10050000
+t_max: 20000000
 
 # update the target network every {} episodes
 target_update_interval: 1
@@ -44,3 +50,4 @@ per_beta: 0.4
 return_priority: True
 
 name: "vdn_env=16_adam_td_lambda"
+

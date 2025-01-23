@@ -96,6 +96,7 @@ class StarCraft2Env(MultiAgentEnv):
         debug=False,
         # My params
         run_mode="Train",
+        mask_reward=0.001
     ):
         """
         Create a StarCraftC2Env environment.
@@ -288,7 +289,8 @@ class StarCraft2Env(MultiAgentEnv):
 
         # My params
         self.run_mode = run_mode
-        self.agents_rewards = {}
+        # self.agents_rewards = {}
+        self.mask_reward = mask_reward
 
         # Try to avoid leaking SC2 processes on shutdown
         atexit.register(lambda: self.close())
@@ -761,7 +763,6 @@ class StarCraft2Env(MultiAgentEnv):
         return switcher.get(unit.unit_type, 15)
 
     def save_replay(self):
-        print(f"End Info: {self.get_stats()}")
 
         """Save a replay."""
         prefix = self.replay_prefix or self.map_name
@@ -1353,11 +1354,39 @@ class StarCraft2Env(MultiAgentEnv):
         avail_actions = []
         for agent_id in range(self.n_agents):
             unit = self.get_unit_by_id(agent_id)
-            if unit.health > 0 and self._episode_steps > 0:
+            if unit.health > 0:
                 avail_actions.append([1, 1])    # can be masked
             else:
                 avail_actions.append([1, 0])    # cannot be masked
         return avail_actions
+
+    def get_avail_aia_actions(self):
+        """Returns the available actions of all agents in a list."""
+        avail_actions = []
+        for agent_id in range(self.n_agents):
+            unit = self.get_unit_by_id(agent_id)
+            if unit.health > 0:
+                avail_actions.append([1, 1])    # can be attacked
+            else:
+                avail_actions.append([0, 1])    # cannot be attacked
+        return avail_actions
+
+    def get_avail_saia_actions(self):
+        """Returns the available actions of all agents in a list."""
+        avail_actions = []
+        alive_num = 0
+        for agent_id in range(self.n_agents):
+            unit = self.get_unit_by_id(agent_id)
+            if unit.health > 0:
+                alive_num += 1
+                avail_actions.append(1)    # can be attacked
+            else:
+                avail_actions.append(0)    # cannot be attacked
+        if alive_num > 0:
+            avail_actions.append(0)     # no one be attacked
+        else:
+            avail_actions.append(1)     # no one be attacked
+        return [avail_actions]
 
     def close(self):
         """Close StarCraft II."""

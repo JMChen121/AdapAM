@@ -13,7 +13,7 @@ class GoogleFootballEnv(MultiAgentEnv):
         dense_reward=False,
         write_full_episode_dumps=False,
         write_goal_dumps=False,
-        dump_freq=0,
+        dump_freq=1,
         render=False,
         num_agents=4,
         time_limit=200,
@@ -26,6 +26,9 @@ class GoogleFootballEnv(MultiAgentEnv):
         write_video=False,
         number_of_right_players_agent_controls=0,
         seed=0,
+        # My params
+        run_mode="Train",
+        mask_reward=0.00001
     ):
         self.dense_reward = dense_reward
         self.write_full_episode_dumps = write_full_episode_dumps
@@ -43,6 +46,10 @@ class GoogleFootballEnv(MultiAgentEnv):
         self.write_video = write_video
         self.number_of_right_players_agent_controls = number_of_right_players_agent_controls
         self.seed = seed
+
+        self.battles_won = 0
+        self.battles_game = 0
+        self.timeouts = 0
 
         self.env = football_env.create_environment(
             write_full_episode_dumps=self.write_full_episode_dumps,
@@ -72,6 +79,10 @@ class GoogleFootballEnv(MultiAgentEnv):
         self.n_actions = self.action_space[0].n
         self.obs = None
 
+        # My params
+        self.run_mode = run_mode
+        self.mask_reward = mask_reward
+
     def step(self, _actions):
         """Returns reward, terminated, info."""
         if th.is_tensor(_actions):
@@ -79,7 +90,10 @@ class GoogleFootballEnv(MultiAgentEnv):
         else:
             actions = _actions
         self.time_step += 1
-        obs, rewards, done, infos = self.env.step(actions.tolist())
+        if isinstance(actions, list):
+            obs, rewards, done, infos = self.env.step(actions)
+        else:
+            obs, rewards, done, infos = self.env.step(actions.tolist())
 
         self.obs = obs
 
@@ -111,6 +125,13 @@ class GoogleFootballEnv(MultiAgentEnv):
     def get_state_size(self):
         """Returns the size of the global state."""
         return self.get_obs_size() * self.n_agents
+
+    def get_avail_masker_actions(self):
+        """Returns the available actions of all agents in a list."""
+        avail_actions = []
+        for agent_id in range(self.n_agents):
+            avail_actions.append([1, 1])    # can be masked
+        return avail_actions
 
     def get_avail_actions(self):
         """Returns the available actions of all agents in a list."""
@@ -145,4 +166,11 @@ class GoogleFootballEnv(MultiAgentEnv):
         pass
 
     def get_stats(self):
-        return  {}
+        stats = {
+            "battles_won": self.battles_won,
+            "battles_game": self.battles_game,
+            "battles_draw": self.timeouts,
+            "win_rate": self.battles_won / self.battles_game if self.battles_game != 0 else 0,
+            "timeouts": self.timeouts,
+        }
+        return stats

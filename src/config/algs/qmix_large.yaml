@@ -1,5 +1,4 @@
-# --- QMIX specific parameters with large networks ---
-# for 3s5z_vs_3s6z
+# --- QMIX specific parameters with large networks --- for 3s5z_vs_3s6z, 27m_vs_30m
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -8,15 +7,21 @@ epsilon_finish: 0.05
 epsilon_anneal_time: 100000 
 
 ## --- for training ---
+#run_mode: "Train"
 #runner: "parallel"
 #batch_size_run: 8
+
 # --- for testing ---
+run_mode: "Test"
 runner: "episode"
 batch_size_run: 1
-buffer_size: 1048
-batch_size: 128
 
-t_max: 10050000
+#buffer_size: 1000
+#batch_size: 128
+buffer_size: 500
+batch_size: 64
+
+t_max: 10000000
 
 # update the target network every {} episodes
 target_update_interval: 200
@@ -50,3 +55,6 @@ per_beta: 0.4
 return_priority: False
 
 name: "qmix_large_env=8_adam_td_lambda"
+
+# My code: for masker
+mask_reward: 0.01   # 0.01 for medium number, 0.001 for large number

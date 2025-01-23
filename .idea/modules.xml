@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/pymarl2_mask.iml" filepath="$PROJECT_DIR$/.idea/pymarl2_mask.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/pymarl2_AIA.iml" filepath="$PROJECT_DIR$/.idea/pymarl2_AIA.iml" />
     </modules>
   </component>
 </project>
