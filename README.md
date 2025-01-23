@@ -47,7 +47,6 @@ bash install_gfootball.sh
 Set up MPE:
 
 ```shell
-# install this package first
 pip install seaborn
 ```
 
