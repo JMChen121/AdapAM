@@ -6,6 +6,7 @@ This repository contains the source code for the paper: **Adversarial Attack on 
 We propose **AdapAM**, a novel learning-based framework for **Adap**tive adversarial **A**ttacks on the black-box **M**AS. 
 
 The overview of **AdapAM** is shown in the figure below:
+
 ![图片](images/overview.png)
 
 # Environment Setup
@@ -15,7 +16,7 @@ Our experiments are conducted on three popular multi-agent benchmarks with diffe
 
 - [StarCraftII (SMAC)](https://github.com/oxwhirl/smac)
 - [Multiagent Particle-World Environments (MPE)](https://github.com/openai/multiagent-particle-envs)
-- [Google Research Football (GRF)](https://github.com/google-research/football)
+- [Google Research Football (GF)](https://github.com/google-research/football)
 
 ## Installation instructions
 Install Python packages
@@ -38,7 +39,7 @@ bash install_sc2.sh
 This will download SC2.4.10 into the 3rdparty folder and copy the maps necessary to run over.
 ```
 
-Set up GRF:
+Set up GF:
 
 ```shell
 bash install_gfootball.sh
@@ -63,13 +64,13 @@ bash scripts/train/train_smac_8m.sh
 
 ####################################
 
-### GRF:
+### GF:
 
-## GRF-counter_attack
-bash scripts/train/train_grf_counter_attack.sh
+## GF-counter_attack
+bash scripts/train/train_GF_counter_attack.sh
 
-## GRF-3vs1_with_keeper
-bash scripts/train/train_grf_3vs1_with_keeper.sh
+## GF-3vs1_with_keeper
+bash scripts/train/train_GF_3vs1_with_keeper.sh
 
 ####################################
 
@@ -94,13 +95,13 @@ bash scripts/train/train_smac_8m_AdapAM.sh
 
 ####################################
 
-### GRF:
+### GF:
 
-## GRF-counter_attack
-bash scripts/train/train_grf_counter_attack_AdapAM.sh
+## GF-counter_attack
+bash scripts/train/train_GF_counter_attack_AdapAM.sh
 
-## GRF-3vs1_with_keeper
-bash scripts/train/train_grf_3vs1_with_keeper_AdapAM.sh
+## GF-3vs1_with_keeper
+bash scripts/train/train_GF_3vs1_with_keeper_AdapAM.sh
 
 ####################################
 
@@ -125,13 +126,13 @@ bash scripts/eval/eval_smac_8m.sh
 
 ####################################
 
-### GRF:
+### GF:
 
-## GRF-counter_attack
-bash scripts/eval/eval_grf_counter_attack.sh
+## GF-counter_attack
+bash scripts/eval/eval_GF_counter_attack.sh
 
-## GRF-3vs1_with_keeper
-bash scripts/eval/eval_grf_3vs1_with_keeper.sh
+## GF-3vs1_with_keeper
+bash scripts/eval/eval_GF_3vs1_with_keeper.sh
 
 ####################################
 
