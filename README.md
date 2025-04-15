@@ -25,7 +25,7 @@ Install Python packages
 # require Anaconda 3 or Miniconda 3
 conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=10.1 -c pytorch -y
 pip install protobuf==3.19.5 sacred==0.8.2 numpy scipy gym==0.11 matplotlib \
-    pyyaml==5.3.1 pygame pytest probscale imageio snakeviz tensorboard-logger
+    pyyaml==5.3.1 pygame pytest probscale imageio snakeviz tensorboard-logger 
 
 # Even though we provide requirement.txt, it may have redundancy. We recommend to install other required packages by running the code and finding which required package hasn't installed yet.
 
